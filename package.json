@@ -1,0 +1,23 @@
+{
+  "name": "tripartite",
+  "version": "1.0.0",
+  "description": "A simple and fast javascript templating library",
+  "main": "tripartite.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EmergentIdeas/tripartite.git"
+  },
+  "keywords": [
+    "template",
+    "micro"
+  ],
+  "author": "Dan Kolz",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/EmergentIdeas/tripartite/issues"
+  },
+  "homepage": "https://github.com/EmergentIdeas/tripartite#readme"
+}
