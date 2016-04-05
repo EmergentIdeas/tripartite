@@ -18,8 +18,12 @@ var Tripartite = {
 		// This object (if set) will receive the template functions parsed from a script
 		// I want to be able to call my templates as global functions, so I've set it
 		// to be the window object
-		secondaryTemplateFunctionObject: window
+		secondaryTemplateFunctionObject: null
 };
+
+if(typeof window != 'undefined') {
+	Tripartite.secondaryTemplateFunctionObject = window
+}
 
 (function(t) {
 var st = t.secondaryTemplateFunctionObject;
