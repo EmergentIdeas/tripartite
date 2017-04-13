@@ -39,6 +39,10 @@ t.prototype.createBlank = function() {
 	return new Tripartite()
 }
 
+t.prototype.getTemplate = function(name) {
+	return this.templates[name]
+}
+
 t.prototype.parseTemplateScript = function(tx) {
 	var tks = this.tts(tx);
 	/* current template name */
@@ -142,16 +146,20 @@ ae.prototype.run = function(/* current context */cc) {
 		if(this.ed instanceof Array) {
 			var r = '';
 			for(var i = 0; i < this.ed.length; i++) {
-				r += this.tripartite.templates[at](this.ed[i]);
+				r += this.getTemplate(at)(this.ed[i]);
 			}
 			return r;
 		}
 		else {
-			return this.tripartite.templates[at](this.ed);
+			return this.getTemplate(at)(this.ed);
 		}
 	}
 	return '';
 };
+
+ae.prototype.getTemplate = function(name) {
+	return this.tripartite.getTemplate(name)
+}
 
 /* evaluate data selector expression */
 ae.prototype.edse = function(cc) {

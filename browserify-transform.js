@@ -3,9 +3,18 @@ var through = require('through2');
 module.exports = function(file, opts) {
     return through(function(buf, enc, next) {
         var fileName = file.toString()
-        if (/\.tri$/.test(fileName)) {
-            var templateName = fileName.substring(0, fileName.length - 4)
-			
+		var processable = false
+		var templateName
+		
+		if (/\.tri$/.test(fileName)) {
+            templateName = fileName.substring(0, fileName.length - 4)
+			processable = true
+		}
+		if (/\.body$/.test(fileName)) {
+            templateName = fileName.substring(0, fileName.length - 5)
+			processable = true
+		}
+		if(processable) {	
 			if(__dirname.indexOf('node_modules') > -1) {
 				var start = __dirname.substring(0, __dirname.indexOf('node_modules'))
 				if(templateName.indexOf(start) == 0) {
