@@ -5,11 +5,25 @@ if(typeof String.prototype.trim !== 'function') {
   }
 }
 
+function cloneArray(ar) {
+	var consumed = []
+	for(var i = 0; i < ar.length; i++) {
+		consumed.push(ar[i])
+	}
+	return consumed
+}
 
 var Tripartite = function() {
 	this.templates = {
 		defaultTemplate: function(thedata) {
 			return '' + thedata;
+		}
+	}
+	
+	this.templates.defaultTemplate.write = function(thedata, stream, callback) {
+		stream.write('' + thedata)
+		if(callback) {
+			callback()
 		}
 	}
 	
@@ -22,6 +36,8 @@ var Tripartite = function() {
 	// I want to be able to call my templates as global functions, so I've set it
 	// to be the window object
 	this.secondaryTemplateFunctionObject = null
+	
+	this.loaders = []
 }
 
 var t = Tripartite
@@ -30,6 +46,23 @@ var t = Tripartite
 t.prototype.addTemplate = function(name, template) {
 	if(typeof template !== 'function') {
 		template = this.pt(template);
+	}
+	if(!template.write) {
+		var oldFun = template
+		template = function(cc) {
+			if(arguments.length > 1) {
+				template.write.apply(this, arguments)
+			}
+			else {
+				return oldFun(cc)
+			}
+		}
+		template.write = function(cc, stream, callback) {
+			stream.write(oldFun(cc))
+			if(callback) {
+				callback()
+			}
+		}
 	}
 	this.templates[name] = template;
 	return template;
@@ -41,6 +74,30 @@ t.prototype.createBlank = function() {
 
 t.prototype.getTemplate = function(name) {
 	return this.templates[name]
+}
+
+t.prototype.loadTemplate = function(name, callback) {
+	if(this.templates[name]) {
+		callback(this.templates[name])
+		
+	}
+	else {
+		var tri = this
+		
+		var done = false
+		for(var i = 0; i < this.loaders.length; i++) {
+			this.loaders[i](name, function(template) {
+				if(done) {
+					return
+				}
+				if(template) {
+					done = true
+					tri.addTemplate(name, template)
+					callback(tri.getTemplate(name))
+				}
+			})
+		}
+	}
 }
 
 t.prototype.parseTemplateScript = function(tx) {
@@ -103,9 +160,19 @@ var ae = t.prototype.ActiveElement;
 t.prototype.st = function(/* conditional expression */ cd, data, /* handling expression */ hd, tripartite) {
 	this.tripartite = tripartite
 	var el = new ae(cd, data, hd, tripartite);
-	return function(cc) {
-		return el.run(cc);
-		};
+	var f = function(cc) {
+		if(arguments.length > 1) {
+			el.write.apply(el, arguments)
+		}
+		else {
+			return el.run(cc);
+		}
+	}
+	
+	f.write = function(cc, stream, callback) {
+		el.write(cc, stream, callback)
+	}
+	return f
 };
 
 
@@ -157,6 +224,73 @@ ae.prototype.run = function(/* current context */cc) {
 	return '';
 };
 
+ae.prototype.write = function(/* current context */cc, stream, callback) {
+	/* run template */
+	var rt = false;
+	/* evaluated data */
+	this.ed = this.edse(cc);
+	if(this.ce) {
+		rt = this.eic(cc, this.ce);
+	}
+	else {
+		if(this.ed instanceof Array) {
+			if(this.ed.length > 0) {
+				rt = true;
+			}
+		}
+		else {
+			if(this.ed) {
+				rt = true;
+			}
+			else if(!this.dse) {
+				rt = true
+				this.ed = cc
+			}
+		}
+	}
+	
+	var at = this.he;
+	if(at.charAt(0) == '$') {
+		at = this.eic(cc, at.substring(1));
+	}
+	if(!at) {
+		at = 'defaultTemplate';
+	}
+	
+	var self = this
+	
+	
+	if(rt) {
+		this.tripartite.loadTemplate(at, function(template) {
+			var consumed
+			if(self.ed instanceof Array) {
+				consumed = cloneArray(self.ed)
+			}
+			else {
+				consumed = [self.ed]
+			}
+			
+			var procConsumed = function() {
+				template.write(consumed.shift(), stream, function() {
+					if(consumed.length > 0) {
+						procConsumed()
+					}
+					else if(callback) {
+						callback()
+					}
+				})
+			}
+			
+			if(consumed.length > 0) {
+				procConsumed()
+			}
+			else {
+				callback()
+			}
+		})
+	}
+};
+
 ae.prototype.getTemplate = function(name) {
 	return this.tripartite.getTemplate(name)
 }
@@ -205,22 +339,60 @@ t.prototype.pt = function(tx) {
 		}
 	}
 	
-	return function(cc) {
-		var r = '';
-		for(var i = 0; i < pt.length; i++) {
-			if(typeof pt[i] === 'string') {
-				r += pt[i];
+	var t = function(cc) {
+		if(arguments.length > 1) {
+			t.write.apply(t, arguments)
+		}
+		else {
+			var r = '';
+			for(var i = 0; i < pt.length; i++) {
+				if(typeof pt[i] === 'string') {
+					r += pt[i];
+				}
+				else {
+					r += pt[i](cc);
+				}
+			}
+			return r;
+		}
+	}
+	
+	t.write = function(cc, stream, callback) {
+		var consumed = cloneArray(pt)
+		
+		var procConsumed = function() {
+			var unit = consumed.shift()
+			if(typeof unit === 'string') {
+				stream.write(unit)
+				if(consumed.length > 0) {
+					procConsumed()
+				}
+				else if(callback) {
+					callback()
+				}
 			}
 			else {
-				r += pt[i](cc);
+				unit.write(cc, stream, function() {
+					if(consumed.length > 0) {
+						procConsumed()
+					}
+					else if(callback) {
+						callback()
+					}
+				})
 			}
 		}
-		return r;
-	};
+		
+		if(consumed.length > 0) {
+			procConsumed()
+		}
+	}
+	
+	return t
 };
 
 /* tokenize active part */
-t.prototype.tap = function(tx) {
+t.prototype.tokenizeActivePart = function(tx) {
 	var con = null;
 	var dat = null;
 	var han = null;
@@ -247,10 +419,14 @@ t.prototype.tap = function(tx) {
 	return new this.st(con, dat, han, this);
 }
 
+t.prototype.tap = t.prototype.tokenizeActivePart
+
 /* tokenize template */
-t.prototype.tt = function(tx) {
+t.prototype.tokenizeTemplate = function(tx) {
 	return this.taib(tx, this.constants.templateBoundary);
 }
+
+t.prototype.tt = t.prototype.tokenizeTemplate
 
 /** tokenize template script */
 t.prototype.tts = function(tx) {
