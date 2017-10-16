@@ -83,17 +83,21 @@ t.prototype.loadTemplate = function(name, callback) {
 	}
 	else {
 		var tri = this
-		
+		var count = this.loaders.length
 		var done = false
 		for(var i = 0; i < this.loaders.length; i++) {
 			this.loaders[i](name, function(template) {
 				if(done) {
 					return
 				}
+				count--
 				if(template) {
 					done = true
 					tri.addTemplate(name, template)
 					callback(tri.getTemplate(name))
+				}
+				else if(count == 0) {
+					callback(null)
 				}
 			})
 		}
