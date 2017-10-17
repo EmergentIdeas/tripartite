@@ -293,6 +293,9 @@ ae.prototype.write = function(/* current context */cc, stream, callback) {
 			}
 		})
 	}
+	else {
+		callback()
+	}
 };
 
 ae.prototype.getTemplate = function(name) {
