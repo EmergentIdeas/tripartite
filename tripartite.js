@@ -275,14 +275,27 @@ ae.prototype.write = function(/* current context */cc, stream, callback) {
 			}
 			
 			var procConsumed = function() {
-				template.write(consumed.shift(), stream, function() {
-					if(consumed.length > 0) {
-						procConsumed()
+				if(template) {
+					template.write(consumed.shift(), stream, function() {
+						if(consumed.length > 0) {
+							procConsumed()
+						}
+						else if(callback) {
+							callback()
+						}
+					})
+				}
+				else {
+					if(callback) {
+						var err = new Error('Cound not load template: ' + at)
+						err.templateName = at
+						err.type = 'missing template'
+						callback(err)
 					}
-					else if(callback) {
-						callback()
+					else {
+						console.error('Cound not load template: ' + at)
 					}
-				})
+				}
 			}
 			
 			if(consumed.length > 0) {
@@ -366,6 +379,7 @@ t.prototype.pt = function(tx) {
 	
 	t.write = function(cc, stream, callback) {
 		var consumed = cloneArray(pt)
+		var lastError
 		
 		var procConsumed = function() {
 			var unit = consumed.shift()
@@ -379,12 +393,24 @@ t.prototype.pt = function(tx) {
 				}
 			}
 			else {
-				unit.write(cc, stream, function() {
-					if(consumed.length > 0) {
+				unit.write(cc, stream, function(err) {
+					if(err && stream.continueOnTripartiteError) {
+						lastError = err
+					}
+					
+					if(err && callback && !stream.continueOnTripartiteError) {
+						callback(err)
+					}
+					else if(consumed.length > 0) {
 						procConsumed()
 					}
 					else if(callback) {
-						callback()
+						if(lastError) {
+							callback(lastError)
+						}
+						else {
+							callback()
+						}
 					}
 				})
 			}
@@ -480,5 +506,14 @@ if(module) {
 }
 else {
 	window.Tripartite = tripartiteInstance
+}
+
+if(global) {
+	if(!global.Tripartite) {
+		global.Tripartite = Tripartite
+	}
+	if(!global.tripartite) {
+		global.tripartite = tripartiteInstance
+	}
 }
 
