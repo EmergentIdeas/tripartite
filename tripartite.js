@@ -38,6 +38,8 @@ var Tripartite = function() {
 	this.secondaryTemplateFunctionObject = null
 	
 	this.loaders = []
+	
+	this.dataFunctions = {}
 }
 
 var t = Tripartite
@@ -329,16 +331,20 @@ ae.prototype.edse = function(cc) {
 /* evaluate in context */
 ae.prototype.eic = function(cc, ex) {
 	cc = cc || {};
-	return this.eicwt.call(cc, cc, ex);
+	return this.eicwt.call(cc, cc, ex, this.tripartite.dataFunctions);
 };
 
 /* Evaluate in context having been called so that this === cc (current context */
-ae.prototype.eicwt = function(cc, ex) {
-	with (cc) {
-		try {
-			return eval(ex);
-		} catch(e) {
-			return null;
+ae.prototype.eicwt = function(cc, ex, dataFunctions) {
+	dataFunctions = dataFunctions || {}
+	
+	with (dataFunctions) {
+		with (cc) {
+			try {
+				return eval(ex);
+			} catch(e) {
+				return null;
+			}
 		}
 	}
 };
