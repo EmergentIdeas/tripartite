@@ -48,6 +48,14 @@ describe("standard parsing and execution", function() {
 		})
 		assert.equal('{"name":"Dan"}', jsonTest())
 	})
+	
+	it("relative template", function() {
+		var tri2 = tri.createBlank()
+		var here = tri2.addTemplate('one/here', "now I'm here __::./there__")
+		var there = tri2.addTemplate('one/there', "now I'm there")
+		assert.equal("now I'm here now I'm there", here())
+	})
+
 })
 
 

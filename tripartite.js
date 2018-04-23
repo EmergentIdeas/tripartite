@@ -1,4 +1,6 @@
 
+var calculateRelativePath = require('./calculate-relative-path')
+
 if(typeof String.prototype.trim !== 'function') {
   String.prototype.trim = function() {
     return this.replace(/^\s+|\s+$/g, ''); 
@@ -67,6 +69,8 @@ t.prototype.addTemplate = function(name, template) {
 		}
 	}
 	this.templates[name] = template;
+	template.templateMeta = template.templateMeta || {}
+	template.templateMeta.name = name
 	return template;
 };
 
@@ -163,9 +167,10 @@ t.prototype.ActiveElement = function(/* the conditional */cd, data, hd, triparti
 var ae = t.prototype.ActiveElement;
 
 /* SimpleTemplate */
-t.prototype.st = function(/* conditional expression */ cd, data, /* handling expression */ hd, tripartite) {
+t.prototype.st = function(/* conditional expression */ cd, data, /* handling expression */ hd, tripartite, templateMeta) {
 	this.tripartite = tripartite
 	var el = new ae(cd, data, hd, tripartite);
+	el.templateMeta = templateMeta
 	var f = function(cc) {
 		if(arguments.length > 1) {
 			el.write.apply(el, arguments)
@@ -174,6 +179,7 @@ t.prototype.st = function(/* conditional expression */ cd, data, /* handling exp
 			return el.run(cc);
 		}
 	}
+	f.templateMeta = templateMeta
 	
 	f.write = function(cc, stream, callback) {
 		el.write(cc, stream, callback)
@@ -213,6 +219,11 @@ ae.prototype.run = function(/* current context */cc) {
 	}
 	if(!at) {
 		at = 'defaultTemplate';
+	}
+	
+	// resolve relative template paths
+	if(at.indexOf('./') == 0 || at.indexOf('../') == 0) {
+		at = calculateRelativePath(this.templateMeta.name, at)
 	}
 	
 	if(rt) {
@@ -262,6 +273,12 @@ ae.prototype.write = function(/* current context */cc, stream, callback) {
 	if(!at) {
 		at = 'defaultTemplate';
 	}
+
+	// resolve relative template paths
+	if(at.indexOf('./') == 0 || at.indexOf('../') == 0) {
+		at = calculateRelativePath(this.templateMeta.name, at)
+	}
+	
 	
 	var self = this
 	
@@ -353,10 +370,12 @@ ae.prototype.eicwt = function(cc, ex, dataFunctions) {
 t.prototype.pt = function(tx) {
 	var tks = this.tt(tx);
 	var pt = [];
+	var templateMeta = {}
+	
 	for(var i = 0; i < tks.length; i++) {
 		var tk = tks[i];
 		if(tk.active) {
-			pt.push(this.tap(tk.content));
+			pt.push(this.tap(tk.content, templateMeta));
 		}
 		else {
 			if(tk.content) {
@@ -382,6 +401,8 @@ t.prototype.pt = function(tx) {
 			return r;
 		}
 	}
+	
+	t.templateMeta = templateMeta
 	
 	t.write = function(cc, stream, callback) {
 		var consumed = cloneArray(pt)
@@ -431,7 +452,7 @@ t.prototype.pt = function(tx) {
 };
 
 /* tokenize active part */
-t.prototype.tokenizeActivePart = function(tx) {
+t.prototype.tokenizeActivePart = function(tx, templateMeta) {
 	var con = null;
 	var dat = null;
 	var han = null;
@@ -455,7 +476,7 @@ t.prototype.tokenizeActivePart = function(tx) {
 	else {
 		dat = tx.substring(ci);
 	}
-	return new this.st(con, dat, han, this);
+	return new this.st(con, dat, han, this, templateMeta);
 }
 
 t.prototype.tap = t.prototype.tokenizeActivePart

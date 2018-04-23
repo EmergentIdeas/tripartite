@@ -24,6 +24,18 @@ describe("template loaded from stream", function() {
 				}
 			})
 		})
+		it("relative template streaming", function(done) {
+			var here = tri.addTemplate('one/here', "now I'm here __::./there__")
+			var there = tri.addTemplate('one/there', "now I'm there")
+			here({}, out, function() {
+				try {
+					assert.equal(out.getContentsAsString(), "now I'm here now I'm there")
+					done()
+				} catch(ex) {
+					done(ex)
+				}
+			})
+		})
 	})
 	describe('missing data allows templates to continue', function() {
 		it('tests to be sure templates are loaded', function(done) {

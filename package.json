@@ -1,6 +1,6 @@
 {
   "name": "tripartite",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A simple and fast javascript templating library",
   "main": "tripartite.js",
   "scripts": {
