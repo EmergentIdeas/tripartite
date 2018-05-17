@@ -53,12 +53,12 @@ t.prototype.addTemplate = function(name, template) {
 	}
 	if(!template.write) {
 		var oldFun = template
-		template = function(cc) {
-			if(arguments.length > 1) {
+		template = function(cc, globalData) {
+			if(arguments.length > 1 && arguments[1] && arguments[1].write) {
 				template.write.apply(this, arguments)
 			}
 			else {
-				return oldFun(cc)
+				return oldFun(cc, globalData)
 			}
 		}
 		template.write = function(cc, stream, callback) {
@@ -171,30 +171,30 @@ t.prototype.st = function(/* conditional expression */ cd, data, /* handling exp
 	this.tripartite = tripartite
 	var el = new ae(cd, data, hd, tripartite);
 	el.templateMeta = templateMeta
-	var f = function(cc) {
-		if(arguments.length > 1) {
+	var f = function(cc, globalData) {
+		if(arguments.length > 1 && arguments[1] && arguments[1].write) {
 			el.write.apply(el, arguments)
 		}
 		else {
-			return el.run(cc);
+			return el.run(cc, globalData);
 		}
 	}
 	f.templateMeta = templateMeta
 	
-	f.write = function(cc, stream, callback) {
-		el.write(cc, stream, callback)
+	f.write = function(cc, stream, callback, globalData) {
+		el.write(cc, stream, callback, globalData)
 	}
 	return f
 };
 
 
-ae.prototype.run = function(/* current context */cc) {
+ae.prototype.run = function(/* current context */cc, globalData) {
 	/* run template */
 	var rt = false;
 	/* evaluated data */
-	this.ed = this.edse(cc);
+	this.ed = this.edse(cc, globalData);
 	if(this.ce) {
-		rt = this.eic(cc, this.ce);
+		rt = this.eic(cc, this.ce, globalData);
 	}
 	else {
 		if(this.ed instanceof Array) {
@@ -215,7 +215,7 @@ ae.prototype.run = function(/* current context */cc) {
 	
 	var at = this.he;
 	if(at.charAt(0) == '$') {
-		at = this.eic(cc, at.substring(1));
+		at = this.eic(cc, at.substring(1), globalData);
 	}
 	if(!at) {
 		at = 'defaultTemplate';
@@ -230,24 +230,24 @@ ae.prototype.run = function(/* current context */cc) {
 		if(this.ed instanceof Array) {
 			var r = '';
 			for(var i = 0; i < this.ed.length; i++) {
-				r += this.getTemplate(at)(this.ed[i]);
+				r += this.getTemplate(at)(this.ed[i], globalData || cc);
 			}
 			return r;
 		}
 		else {
-			return this.getTemplate(at)(this.ed);
+			return this.getTemplate(at)(this.ed, globalData || cc);
 		}
 	}
 	return '';
 };
 
-ae.prototype.write = function(/* current context */cc, stream, callback) {
+ae.prototype.write = function(/* current context */cc, stream, callback, globalData) {
 	/* run template */
 	var rt = false;
 	/* evaluated data */
-	this.ed = this.edse(cc);
+	this.ed = this.edse(cc, globalData);
 	if(this.ce) {
-		rt = this.eic(cc, this.ce);
+		rt = this.eic(cc, this.ce, globalData);
 	}
 	else {
 		if(this.ed instanceof Array) {
@@ -268,7 +268,7 @@ ae.prototype.write = function(/* current context */cc, stream, callback) {
 	
 	var at = this.he;
 	if(at.charAt(0) == '$') {
-		at = this.eic(cc, at.substring(1));
+		at = this.eic(cc, at.substring(1), globalData);
 	}
 	if(!at) {
 		at = 'defaultTemplate';
@@ -302,7 +302,7 @@ ae.prototype.write = function(/* current context */cc, stream, callback) {
 						else if(callback) {
 							callback()
 						}
-					})
+					}, globalData || cc)
 				}
 				else {
 					if(callback) {
@@ -335,32 +335,37 @@ ae.prototype.getTemplate = function(name) {
 }
 
 /* evaluate data selector expression */
-ae.prototype.edse = function(cc) {
+ae.prototype.edse = function(cc, globalData) {
 	if(!this.dse) {
 		return null;
 	}
 	if(this.dse === '$this') {
 		return cc;
 	}
-	return this.eic(cc, this.dse);
+	return this.eic(cc, this.dse, globalData);
 };
 
 /* evaluate in context */
-ae.prototype.eic = function(cc, ex) {
+ae.prototype.eic = function(cc, ex, globalData) {
 	cc = cc || {};
-	return this.eicwt.call(cc, cc, ex, this.tripartite.dataFunctions);
+	return this.eicwt.call(cc, cc, ex, this.tripartite.dataFunctions, globalData);
 };
 
 /* Evaluate in context having been called so that this === cc (current context */
-ae.prototype.eicwt = function(cc, ex, dataFunctions) {
+ae.prototype.eicwt = function(cc, ex, dataFunctions, globalData) {
 	dataFunctions = dataFunctions || {}
+	globalData = globalData || cc || {}
 	
-	with (dataFunctions) {
-		with (cc) {
-			try {
-				return eval(ex);
-			} catch(e) {
-				return null;
+	with ({
+		'$globals': globalData 
+	}) {
+		with (dataFunctions) {
+			with (cc) {
+				try {
+					return eval(ex);
+				} catch(e) {
+					return null;
+				}
 			}
 		}
 	}
@@ -384,8 +389,8 @@ t.prototype.pt = function(tx) {
 		}
 	}
 	
-	var t = function(cc) {
-		if(arguments.length > 1) {
+	var t = function(cc, globalData) {
+		if(arguments.length > 1 && arguments[1] && arguments[1].write) {
 			t.write.apply(t, arguments)
 		}
 		else {
@@ -395,7 +400,7 @@ t.prototype.pt = function(tx) {
 					r += pt[i];
 				}
 				else {
-					r += pt[i](cc);
+					r += pt[i](cc, globalData);
 				}
 			}
 			return r;
@@ -404,7 +409,7 @@ t.prototype.pt = function(tx) {
 	
 	t.templateMeta = templateMeta
 	
-	t.write = function(cc, stream, callback) {
+	t.write = function(cc, stream, callback, globalData) {
 		var consumed = cloneArray(pt)
 		var lastError
 		
@@ -439,7 +444,7 @@ t.prototype.pt = function(tx) {
 							callback()
 						}
 					}
-				})
+				}, globalData)
 			}
 		}
 		

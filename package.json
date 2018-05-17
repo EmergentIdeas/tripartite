@@ -1,11 +1,11 @@
 {
   "name": "tripartite",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "A simple and fast javascript templating library",
   "main": "tripartite.js",
   "scripts": {
     "test": "node_modules/mocha/bin/mocha",
-    "testDebug": "node_modules/mocha/bin/mocha --inspect --debug-brk",
+    "testDebug": "node_modules/mocha/bin/mocha --inspect --inspect-brk",
     "debug": "node --inspect --debug-brk test/test-stream-file-load-direct.js"
   },
   "repository": {

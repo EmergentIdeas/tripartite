@@ -36,6 +36,19 @@ describe("template loaded from stream", function() {
 				}
 			})
 		})
+		
+		it("globals reference", function(done) {
+			var second = tri.addTemplate('second', '__num1__ __num2__ __$globals.num2__')
+			var first = tri.pt("__abc::second__ __$globals.num2__")
+			first({abc: {num1: 1, num2: 3}, num2: 2}, out, function() {
+				try {
+					assert.equal(out.getContentsAsString(), "1 3 2 2")
+					done()
+				} catch(ex) {
+					done(ex)
+				}
+			})
+		})	
 	})
 	describe('missing data allows templates to continue', function() {
 		it('tests to be sure templates are loaded', function(done) {

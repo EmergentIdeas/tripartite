@@ -24,6 +24,13 @@ describe("standard parsing and execution", function() {
 		assert.equal('hello, !', hello({name: 'Dan', cond: false}))
 	})	
 	
+	it("globals reference", function() {
+		tri.addTemplate('second', '__num1__ __num2__ __$globals.num2__')
+		var first = tri.pt("__abc::second__ __$globals.num2__")
+
+		assert.equal('1 3 2 2', first({abc: {num1: 1, num2: 3}, num2: 2}))
+	})	
+	
 	it("blank data", function() {
 		var blankData = tri.pt('some __::wonder__')
 		assert.equal('some wonder', blankData('blank'))

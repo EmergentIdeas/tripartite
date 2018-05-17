@@ -1,5 +1,4 @@
 var calculateRelativePath = function(parentPath, currentPath) {
-	debugger
 	if(!parentPath) {
 		return currentPath
 	}
