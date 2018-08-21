@@ -15,6 +15,25 @@ function cloneArray(ar) {
 	return consumed
 }
 
+var stackDepth = 0;
+function callCallback(callback) {
+	if(callback) {
+		if(stackDepth < 10) {
+			stackDepth++
+			return callback()
+		}
+		else {
+			stackDepth = 0;
+			if(process && process.nextTick) {
+				process.nextTick(callback)
+			}
+			else {
+				setTimeout(callback)
+			}
+		}
+	}
+}
+
 var Tripartite = function() {
 	this.templates = {
 		defaultTemplate: function(thedata) {
@@ -24,9 +43,7 @@ var Tripartite = function() {
 	
 	this.templates.defaultTemplate.write = function(thedata, stream, callback) {
 		stream.write('' + thedata)
-		if(callback) {
-			callback()
-		}
+		callCallback(callback)
 	}
 	
 	this.constants = {
@@ -63,9 +80,7 @@ t.prototype.addTemplate = function(name, template) {
 		}
 		template.write = function(cc, stream, callback) {
 			stream.write(oldFun(cc))
-			if(callback) {
-				callback()
-			}
+			callCallback(callback)
 		}
 	}
 	this.templates[name] = template;
@@ -300,7 +315,7 @@ ae.prototype.write = function(/* current context */cc, stream, callback, globalD
 							procConsumed()
 						}
 						else if(callback) {
-							callback()
+							callCallback(callback)
 						}
 					}, globalData || cc)
 				}
@@ -321,12 +336,12 @@ ae.prototype.write = function(/* current context */cc, stream, callback, globalD
 				procConsumed()
 			}
 			else {
-				callback()
+				callCallback(callback)
 			}
 		})
 	}
 	else {
-		callback()
+		callCallback(callback)
 	}
 };
 
@@ -421,7 +436,7 @@ t.prototype.pt = function(tx) {
 					procConsumed()
 				}
 				else if(callback) {
-					callback()
+					callCallback(callback)
 				}
 			}
 			else {
@@ -441,7 +456,7 @@ t.prototype.pt = function(tx) {
 							callback(lastError)
 						}
 						else {
-							callback()
+							callCallback(callback)
 						}
 					}
 				}, globalData)
