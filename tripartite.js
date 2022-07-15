@@ -98,7 +98,7 @@ t.prototype.getTemplate = function(name) {
 }
 
 t.prototype.loadTemplate = function(name, callback) {
-	if(this.templates[name]) {
+	if(name in this.templates) {
 		callback(this.templates[name])
 		
 	}
@@ -106,6 +106,7 @@ t.prototype.loadTemplate = function(name, callback) {
 		var tri = this
 		var count = this.loaders.length
 		var done = false
+		var self = this
 		for(var i = 0; i < this.loaders.length; i++) {
 			this.loaders[i](name, function(template) {
 				if(done) {
@@ -118,6 +119,7 @@ t.prototype.loadTemplate = function(name, callback) {
 					callback(tri.getTemplate(name))
 				}
 				else if(count == 0) {
+					self.templates[name] = null
 					callback(null)
 				}
 			})
@@ -546,7 +548,18 @@ if(typeof window != 'undefined') {
 	tripartiteInstance.secondaryTemplateFunctionObject = window
 }
 
+function addCallbackToPromise(promise, callback) {
+    if(callback) {
+        promise = promise.then((obj) => {
+            callback(null, obj)
+        }).catch((err) => {
+            callback(err)
+        })
+    }
 
+    return promise
+}
+          
 
 if(module) {
 	module.exports = tripartiteInstance
