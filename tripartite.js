@@ -1,30 +1,53 @@
 
 var calculateRelativePath = require('./calculate-relative-path')
 
-if(typeof String.prototype.trim !== 'function') {
-  String.prototype.trim = function() {
-    return this.replace(/^\s+|\s+$/g, ''); 
-  }
-}
+const defaultTemplateName = 'defaultTemplate'
 
-function cloneArray(ar) {
-	var consumed = []
-	for(var i = 0; i < ar.length; i++) {
-		consumed.push(ar[i])
+if (typeof String.prototype.trim !== 'function') {
+	String.prototype.trim = function () {
+		return this.replace(/^\s+|\s+$/g, '');
 	}
-	return consumed
 }
 
-var stackDepth = 0;
+
+function evaluateInContext(context, expression, dataFunctions, globalData) {
+	dataFunctions = dataFunctions || {}
+	globalData = globalData || cc || {}
+
+	if (!expression) {
+		return null
+	}
+
+	if (expression === '$this' || expression === 'this') {
+		return context
+	}
+
+	with ({
+		'$globals': globalData
+	}) {
+		with (dataFunctions) {
+			with (context) {
+				try {
+					return eval(expression);
+				} catch (e) {
+					return null;
+				}
+			}
+		}
+	}
+}
+/*
+let stackDepth = 0
+
 function callCallback(callback) {
-	if(callback) {
-		if(stackDepth < 10) {
+	if (callback) {
+		if (stackDepth < 10) {
 			stackDepth++
 			return callback()
 		}
 		else {
 			stackDepth = 0;
-			if(process && process.nextTick) {
+			if (process && process.nextTick) {
 				process.nextTick(callback)
 			}
 			else {
@@ -33,546 +56,496 @@ function callCallback(callback) {
 		}
 	}
 }
+*/
 
-var Tripartite = function() {
-	this.templates = {
-		defaultTemplate: function(thedata) {
-			return '' + thedata;
-		}
-	}
-	
-	this.templates.defaultTemplate.write = function(thedata, stream, callback) {
-		stream.write('' + thedata)
-		callCallback(callback)
-	}
-	
-	this.constants = {
-		templateBoundary: '__',
-		templateNameBoundary: '##'
-	}
-	
-	// This object (if set) will receive the template functions parsed from a script
-	// I want to be able to call my templates as global functions, so I've set it
-	// to be the window object
-	this.secondaryTemplateFunctionObject = null
-	
-	this.loaders = []
-	
-	this.dataFunctions = {}
+function isStream(stream) {
+	return stream !== null
+		&& typeof stream === 'object'
+		&& typeof stream.pipe === 'function';
 }
 
-var t = Tripartite
 
-
-t.prototype.addTemplate = function(name, template) {
-	if(typeof template !== 'function') {
-		template = this.pt(template);
+function isTemplate(obj) {
+	if (!obj) {
+		return false
 	}
-	if(!template.write) {
-		var oldFun = template
-		template = function(cc, globalData) {
-			if(arguments.length > 1 && arguments[1] && arguments[1].write) {
-				template.write.apply(this, arguments)
-			}
-			else {
-				return oldFun(cc, globalData)
-			}
-		}
-		template.write = function(cc, stream, callback) {
-			stream.write(oldFun(cc))
-			callCallback(callback)
-		}
+	if (typeof obj !== 'function') {
+		return false
 	}
-	this.templates[name] = template;
-	template.templateMeta = template.templateMeta || {}
-	template.templateMeta.name = name
-	return template;
-};
+	if (!obj.write) {
+		return false
+	}
+	if (!obj.parts) {
+		return false
+	}
+	if (!obj.templateMeta) {
+		return false
+	}
 
-t.prototype.createBlank = function() {
-	return new Tripartite()
+	return true
 }
 
-t.prototype.getTemplate = function(name) {
-	return this.templates[name]
-}
 
-t.prototype.loadTemplate = function(name, callback) {
-	if(name in this.templates) {
-		callback(this.templates[name])
-		
+
+class ExecutionContext {
+	/**
+	 * 
+	 * @param {Tripartite} tripartite 
+	 * @param {function} template 
+	 * @param {stream} [destination]
+	 */
+	constructor(tripartite, template, data = {}, destination = '', dataFunctions = {}) {
+		this.tripartite = tripartite
+		this.template = template
+		this.destination = destination
+		this.initialData = data
+		this.currentData = []
+		this.dataFunctions = dataFunctions
+		this.continueOnTripartiteError = true
 	}
-	else {
-		var tri = this
-		var count = this.loaders.length
-		var done = false
-		var self = this
-		for(var i = 0; i < this.loaders.length; i++) {
-			this.loaders[i](name, function(template) {
-				if(done) {
-					return
-				}
-				count--
-				if(template) {
-					done = true
-					tri.addTemplate(name, template)
-					callback(tri.getTemplate(name))
-				}
-				else if(count == 0) {
-					self.templates[name] = null
-					callback(null)
-				}
-			})
+
+	/**
+	 * 
+	 * @param {function} [callback] called when done
+	 * @returns Returns the string of stream as the result of the operation
+	 */
+	run(callback) {
+		let ourCallback
+		if (callback) {
+			ourCallback = () => {
+				callback(null, this.destination)
+			}
 		}
-	}
-}
 
-t.prototype.parseTemplateScript = function(tx) {
-	var tks = this.tts(tx);
-	/* current template name */
-	var ctn = null;
-	for(var i = 0; i < tks.length; i++) {
-		var token = tks[i];
-		if(token.active) {
-			ctn = token.content;
+		this._run(this.template, this.initialData, ourCallback)
+
+		return this.destination
+	}
+
+	_shouldRunActiveElement(part, data) {
+		let conditional = part.conditionalExpression || part.dataExpression
+		let conditionalResult = false
+		if (conditional == null || conditional == undefined || conditional === '') {
+			// Because if they didn't specify a condition or data, they probably 
+			// just want the template to be run as is
+			conditionalResult = true
 		}
 		else {
-			if(ctn) {
-				var template = this.addTemplate(ctn, this.stw(token.content));
-				if(this.secondaryTemplateFunctionObject) {
-					this.secondaryTemplateFunctionObject[ctn] = template;
-				}
-				ctn = null;
+			let result = evaluateInContext(data, conditional, this.dataFunctions, this.initialData)
+			if (result) {
+				conditionalResult = true
 			}
-		}
-	}
-}
-
-/* strip template whitespace */
-t.prototype.stw = function(txt) {
-	var i = txt.indexOf('\n');
-	if(i > -1 && txt.substring(0, i).trim() == '') {
-		txt = txt.substring(i + 1);
-	}
-	i = txt.lastIndexOf('\n');
-	if(i > -1 && txt.substring(i).trim() == '') {
-		txt = txt.substring(0, i);
-	}
-	return txt;
-};
-
-t.prototype.ActiveElement = function(/* the conditional */cd, data, hd, tripartite) {
-	/* assign the conditional expression */
-	this.ce = cd;
-	/* assign the data selector expression */
-	this.dse = data;
-	
-	this.tripartite = tripartite
-	
-	/* assign the hd expression */
-	if(hd) {
-		this.he = hd;
-	}
-	else {
-		this.he = 'defaultTemplate';
-	}
-	
-	/* evaluated data */
-	this.ed = null;
-};
-
-var ae = t.prototype.ActiveElement;
-
-/* SimpleTemplate */
-t.prototype.st = function(/* conditional expression */ cd, data, /* handling expression */ hd, tripartite, templateMeta) {
-	this.tripartite = tripartite
-	var el = new ae(cd, data, hd, tripartite);
-	el.templateMeta = templateMeta
-	var f = function(cc, globalData) {
-		if(arguments.length > 1 && arguments[1] && arguments[1].write) {
-			el.write.apply(el, arguments)
-		}
-		else {
-			return el.run(cc, globalData);
-		}
-	}
-	f.templateMeta = templateMeta
-	
-	f.write = function(cc, stream, callback, globalData) {
-		el.write(cc, stream, callback, globalData)
-	}
-	return f
-};
-
-
-ae.prototype.run = function(/* current context */cc, globalData) {
-	/* run template */
-	var rt = false;
-	/* evaluated data */
-	this.ed = this.edse(cc, globalData);
-	if(this.ce) {
-		rt = this.eic(cc, this.ce, globalData);
-	}
-	else {
-		if(this.ed instanceof Array) {
-			if(this.ed.length > 0) {
-				rt = true;
-			}
-		}
-		else {
-			if(this.ed) {
-				rt = true;
-			}
-			else if(!this.dse) {
-				rt = true
-				this.ed = cc
-			}
-		}
-	}
-	
-	var at = this.he;
-	if(at.charAt(0) == '$') {
-		at = this.eic(cc, at.substring(1), globalData);
-	}
-	if(!at) {
-		at = 'defaultTemplate';
-	}
-	
-	// resolve relative template paths
-	if(at.indexOf('./') == 0 || at.indexOf('../') == 0) {
-		at = calculateRelativePath(this.templateMeta.name, at)
-	}
-	
-	if(rt) {
-		if(this.ed instanceof Array) {
-			var r = '';
-			for(var i = 0; i < this.ed.length; i++) {
-				r += this.getTemplate(at)(this.ed[i], globalData || cc);
-			}
-			return r;
-		}
-		else {
-			return this.getTemplate(at)(this.ed, globalData || cc);
-		}
-	}
-	return '';
-};
-
-ae.prototype.write = function(/* current context */cc, stream, callback, globalData) {
-	/* run template */
-	var rt = false;
-	/* evaluated data */
-	this.ed = this.edse(cc, globalData);
-	if(this.ce) {
-		rt = this.eic(cc, this.ce, globalData);
-	}
-	else {
-		if(this.ed instanceof Array) {
-			if(this.ed.length > 0) {
-				rt = true;
-			}
-		}
-		else {
-			if(this.ed) {
-				rt = true;
-			}
-			else if(!this.dse) {
-				rt = true
-				this.ed = cc
-			}
-		}
-	}
-	
-	var at = this.he;
-	if(at.charAt(0) == '$') {
-		at = this.eic(cc, at.substring(1), globalData);
-	}
-	if(!at) {
-		at = 'defaultTemplate';
-	}
-
-	// resolve relative template paths
-	if(at.indexOf('./') == 0 || at.indexOf('../') == 0) {
-		at = calculateRelativePath(this.templateMeta.name, at)
-	}
-	
-	
-	var self = this
-	
-	
-	if(rt) {
-		this.tripartite.loadTemplate(at, function(template) {
-			var consumed
-			if(self.ed instanceof Array) {
-				consumed = cloneArray(self.ed)
-			}
-			else {
-				consumed = [self.ed]
-			}
-			
-			var procConsumed = function() {
-				if(template) {
-					template.write(consumed.shift(), stream, function() {
-						if(consumed.length > 0) {
-							procConsumed()
-						}
-						else if(callback) {
-							callCallback(callback)
-						}
-					}, globalData || cc)
+			else if (typeof result === 'number') {
+				// if the result is a number, any number, we want to output it
+				// unless the number is from the conditional expression, in which
+				// case we want to evaluate it as truthy
+				if (part.conditionalExpression) {
+					conditionalResult = !!result
 				}
 				else {
-					if(callback) {
-						var err = new Error('Cound not load template: ' + at)
-						err.templateName = at
-						err.type = 'missing template'
-						callback(err)
-					}
-					else {
-						console.error('Cound not load template: ' + at)
-					}
-				}
-			}
-			
-			if(consumed.length > 0) {
-				procConsumed()
-			}
-			else {
-				callCallback(callback)
-			}
-		})
-	}
-	else {
-		callCallback(callback)
-	}
-};
-
-ae.prototype.getTemplate = function(name) {
-	return this.tripartite.getTemplate(name)
-}
-
-/* evaluate data selector expression */
-ae.prototype.edse = function(cc, globalData) {
-	if(!this.dse) {
-		return null;
-	}
-	if(this.dse === '$this') {
-		return cc;
-	}
-	return this.eic(cc, this.dse, globalData);
-};
-
-/* evaluate in context */
-ae.prototype.eic = function(cc, ex, globalData) {
-	cc = cc || {};
-	return this.eicwt.call(cc, cc, ex, this.tripartite.dataFunctions, globalData);
-};
-
-/* Evaluate in context having been called so that this === cc (current context */
-ae.prototype.eicwt = function(cc, ex, dataFunctions, globalData) {
-	dataFunctions = dataFunctions || {}
-	globalData = globalData || cc || {}
-	
-	with ({
-		'$globals': globalData 
-	}) {
-		with (dataFunctions) {
-			with (cc) {
-				try {
-					return eval(ex);
-				} catch(e) {
-					return null;
+					conditionalResult = true
 				}
 			}
 		}
-	}
-};
 
-/* parse template */
-t.prototype.pt = function(tx) {
-	var tks = this.tt(tx);
-	var pt = [];
-	var templateMeta = {}
-	
-	for(var i = 0; i < tks.length; i++) {
-		var tk = tks[i];
-		if(tk.active) {
-			pt.push(this.tap(tk.content, templateMeta));
-		}
-		else {
-			if(tk.content) {
-				pt.push(tk.content);
-			}
-		}
+		return conditionalResult
 	}
-	
-	var t = function(cc, globalData) {
-		if(arguments.length > 1 && arguments[1] && arguments[1].write) {
-			t.write.apply(t, arguments)
+
+	_resolveHandlingExpression(template, handlingExpression, data) {
+		if (!handlingExpression) {
+			handlingExpression = defaultTemplateName
 		}
-		else {
-			var r = '';
-			for(var i = 0; i < pt.length; i++) {
-				if(typeof pt[i] === 'string') {
-					r += pt[i];
-				}
-				else {
-					r += pt[i](cc, globalData);
-				}
-			}
-			return r;
+		if (handlingExpression.charAt(0) == '$') {
+			// Indicates the handling espression is not a literal template name but is a string which should
+			// be evaluated to determine the template name
+			handlingExpression = evaluateInContext(data, handlingExpression.substring(1), this.dataFunctions, this.initialData)
 		}
+		// resolve relative template paths
+		if (handlingExpression.indexOf('./') == 0 || handlingExpression.indexOf('../') == 0) {
+			handlingExpression = calculateRelativePath(template.templateMeta.name, handlingExpression)
+		}
+
+		return handlingExpression
 	}
-	
-	t.templateMeta = templateMeta
-	
-	t.write = function(cc, stream, callback, globalData) {
-		var consumed = cloneArray(pt)
-		var lastError
-		
-		var procConsumed = function() {
-			var unit = consumed.shift()
-			if(typeof unit === 'string') {
-				stream.write(unit)
-				if(consumed.length > 0) {
-					procConsumed()
+
+	_run(template, data, callback) {
+		let parts = [...template.parts].reverse()
+		const processParts = () => {
+			if (parts.length > 0) {
+				let part = parts.pop()
+				if (typeof part === 'string') {
+					this.output(part)
+					processParts()
 				}
-				else if(callback) {
-					callCallback(callback)
-				}
-			}
-			else {
-				unit.write(cc, stream, function(err) {
-					if(err && stream.continueOnTripartiteError) {
-						lastError = err
-					}
-					
-					if(err && callback && !stream.continueOnTripartiteError) {
-						callback(err)
-					}
-					else if(consumed.length > 0) {
-						procConsumed()
-					}
-					else if(callback) {
-						if(lastError) {
-							callback(lastError)
+				else if (part instanceof ActiveElement) {
+
+					if (this._shouldRunActiveElement(part, data)) {
+						let resultData
+						if (part.dataExpression) {
+							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
 						}
 						else {
-							callCallback(callback)
+							resultData = data
+						}
+
+						let handlingExpression = this._resolveHandlingExpression(template, part.handlingExpression, data)
+						let handlingTemplate
+						let children = (Array.isArray(resultData) ? [...resultData] : [resultData]).reverse()
+						const applyTemplate = () => {
+							if (children.length > 0) {
+								let child = children.pop()
+								this._run(handlingTemplate, child, () => {
+									applyTemplate()
+								})
+							}
+							else {
+								processParts()
+							}
+						}
+
+						handlingTemplate = this.tripartite.getTemplate(handlingExpression)
+						if (handlingTemplate) {
+							applyTemplate()
+						}
+						else {
+							this.tripartite.loadTemplate(handlingExpression, (template) => {
+								if (!template) {
+									let msg = 'Cound not load template: ' + handlingExpression
+									console.error(msg)
+									if (this.continueOnTripartiteError) {
+										processParts()
+									}
+									else {
+										let err = new Error(msg)
+										if (callback) {
+											callback(err)
+										}
+										else {
+											throw err
+										}
+									}
+								}
+								else {
+									handlingTemplate = template
+									applyTemplate()
+								}
+							})
 						}
 					}
-				}, globalData)
+					else {
+						processParts()
+					}
+				}
+				else if (typeof part === 'function') {
+					this.output(part(data))
+					processParts()
+				}
+
+			}
+			else {
+				if (callback) {
+					callback()
+				}
 			}
 		}
-		
-		if(consumed.length > 0) {
-			procConsumed()
+
+		processParts()
+	}
+
+	/**
+	 * 
+	 * @param {string} value 
+	 */
+	output(value) {
+		if (typeof this.destination === 'string') {
+			this.destination += value
+		}
+		else if (this.destination.write) {
+			this.destination.write(value)
 		}
 	}
-	
-	return t
-};
-
-/* tokenize active part */
-t.prototype.tokenizeActivePart = function(tx, templateMeta) {
-	var con = null;
-	var dat = null;
-	var han = null;
-	
-	/* condition index */
-	var ci = tx.indexOf('??');
-	if(ci > -1) {
-		con = tx.substring(0, ci);
-		ci += 2;
-	}
-	else {
-		ci = 0;
-	}
-	
-	/* handler index */
-	var hi = tx.indexOf('::');
-	if(hi > -1) {
-		dat = tx.substring(ci, hi);
-		han = tx.substring(hi + 2);
-	}
-	else {
-		dat = tx.substring(ci);
-	}
-	return new this.st(con, dat, han, this, templateMeta);
 }
 
-t.prototype.tap = t.prototype.tokenizeActivePart
 
-/* tokenize template */
-t.prototype.tokenizeTemplate = function(tx) {
-	return this.taib(tx, this.constants.templateBoundary);
+class ActiveElement {
+	constructor(conditionalExpression, dataExpression, handlingExpression, tripartite) {
+		this.conditionalExpression = conditionalExpression
+		this.dataExpression = dataExpression
+		this.handlingExpression = handlingExpression || defaultTemplateName
+		this.tripartite = tripartite
+	}
 }
 
-t.prototype.tt = t.prototype.tokenizeTemplate
-
-/** tokenize template script */
-t.prototype.tts = function(tx) {
-	return this.taib(tx, this.constants.templateNameBoundary);
-}
-
-/* tokenize active and inactive blocks */
-t.prototype.taib = function(tx, /*Active Region Boundary */ bnd) {
-	/* whole length */
-	var l = tx.length;
-	
-	/* current position */
-	var p = 0;
-	
-	/* are we in an active region */
-	var act = false;
-	
-	var tks = [];
-	
-	while(p < l) {
-		var i = tx.indexOf(bnd, p);
-		if(i == -1) {
-			i = l;
+class Tripartite {
+	constructor(options = {}) {
+		this.templates = {
+			defaultTemplate: this._makeTemplate(function (thedata) {
+				return '' + thedata;
+			})
 		}
-		var tk = { active: act, content: tx.substring(p, i)};
-		tks.push(tk);
-		p = i + 2;
-		act = !act;
-	}
-	
-	return tks;
-}
+		let { constants = {
+			templateBoundary: '__',
+			templateNameBoundary: '##'
+		} } = options
+		this.constants = constants
 
+		// This object (if set) will receive the template functions parsed from a script
+		// I want to be able to call my templates as global functions, so I've set it
+		// to be the window object
+		this.secondaryTemplateFunctionObject = options.secondaryTemplateFunctionObject
+
+		this.loaders = options.loaders || []
+
+		this.dataFunctions = options.dataFunction || {}
+	}
+
+	_makeTemplate(transformationFunction) {
+		if (isTemplate(transformationFunction)) {
+			return transformationFunction
+		}
+		let tri = this
+		let f = function (thedata) {
+			let stream = null
+			let options = null
+			let callback = null
+			for (let i = 1; i < arguments.length; i++) {
+				let arg = arguments[i]
+				if (isStream(arg)) {
+					stream = arg
+				}
+				else if(typeof arg === 'function') {
+					callback = arg
+				}
+				else if(typeof arg === 'object') {
+					options = arg
+				}
+			}
+
+			return f.write(thedata, stream, callback, options)
+		}
+		f.write = function (thedata, stream, callback, options = {}) {
+			let dest = stream || ''
+
+			let context = new ExecutionContext(tri, f, thedata, dest, tri.dataFunctions)
+			if (options && 'continueOnTripartiteError' in options) {
+				context.continueOnTripartiteError = options.continueOnTripartiteError
+			}
+
+			return context.run(callback)
+		}
+		f.parts = []
+		if (transformationFunction && typeof transformationFunction === 'function') {
+			f.parts.push(transformationFunction)
+		}
+		f.templateMeta = {}
+		return f
+	}
+
+	addTemplate(name, template) {
+		if (typeof template === 'string') {
+			template = this.parseTemplate(template);
+		}
+		else if (typeof template === 'function') {
+			template = this._makeTemplate(template)
+		}
+
+		this.templates[name] = template;
+		template.templateMeta = template.templateMeta || {}
+		template.templateMeta.name = name
+		return template;
+	}
+
+	createBlank() {
+		return new Tripartite()
+	}
+
+	getTemplate(name) {
+		return this.templates[name]
+	}
+
+	loadTemplate(name, callback) {
+		if (name in this.templates) {
+			callback(this.templates[name])
+		}
+		else {
+			let tri = this
+			let count = this.loaders.length
+			let done = false
+
+			if (count == 0) {
+				tri.templates[name] = null
+				callback(tri.getTemplate(name))
+			}
+			else {
+				this.loaders.forEach(loader => {
+					if (done) {
+						return
+					}
+					loader(name, template => {
+						if (done) {
+							return
+						}
+						count--
+						if (template) {
+							done = true
+							tri.addTemplate(name, template)
+						}
+						else if (count == 0) {
+							done = true
+							tri.templates[name] = null
+						}
+						if (done) {
+							callback(tri.getTemplate(name))
+						}
+					})
+				})
+			}
+		}
+	}
+	parseTemplateScript(tx) {
+		var tks = this.tokenizeTemplateScript(tx);
+		/* current template name */
+		var ctn = null;
+		for (var i = 0; i < tks.length; i++) {
+			var token = tks[i];
+			if (token.active) {
+				ctn = token.content;
+			}
+			else {
+				if (ctn) {
+					var template = this.addTemplate(ctn, this.stripTemplateWhitespace(token.content));
+					if (this.secondaryTemplateFunctionObject) {
+						this.secondaryTemplateFunctionObject[ctn] = template;
+					}
+					ctn = null;
+				}
+			}
+		}
+	}
+
+	stripTemplateWhitespace(txt) {
+		var i = txt.indexOf('\n');
+		if (i > -1 && txt.substring(0, i).trim() == '') {
+			txt = txt.substring(i + 1);
+		}
+		i = txt.lastIndexOf('\n');
+		if (i > -1 && txt.substring(i).trim() == '') {
+			txt = txt.substring(0, i);
+		}
+		return txt;
+	}
+
+	/* simple template */
+	_createActiveElement(/* conditional expression */ cd, data, /* handling expression */ hd, tripartite, templateMeta) {
+		let el = new ActiveElement(cd, data, hd, tripartite);
+		el.templateMeta = templateMeta
+		return el
+	}
+	pt(tx) {
+		return this.parseTemplate(tx)
+	}
+	/* parse template */
+	parseTemplate(tx) {
+		var tks = this.tokenizeTemplate(tx);
+		let t = this._makeTemplate()
+		var templateMeta = t.templateMeta
+
+		for (let tk of tks) {
+			if (tk.active) {
+				t.parts.push(this.tokenizeActivePart(tk.content, templateMeta));
+			}
+			else if (tk.content) {
+				t.parts.push(tk.content);
+			}
+		}
+
+		return t
+	}
+
+	tokenizeActivePart(tx, templateMeta) {
+		var con = null;
+		var dat = null;
+		var han = null;
+
+		/* condition index */
+		var ci = tx.indexOf('??');
+		if (ci > -1) {
+			con = tx.substring(0, ci);
+			ci += 2;
+		}
+		else {
+			ci = 0;
+		}
+
+		/* handler index */
+		var hi = tx.indexOf('::');
+		if (hi > -1) {
+			dat = tx.substring(ci, hi);
+			han = tx.substring(hi + 2);
+		}
+		else {
+			dat = tx.substring(ci);
+		}
+		return this._createActiveElement(con, dat, han, this, templateMeta);
+	}
+
+	tokenizeTemplate(tx) {
+		return this.tokenizeActiveAndInactiveBlocks(tx, this.constants.templateBoundary);
+	}
+
+
+	/** tokenize template script */
+	tokenizeTemplateScript(tx) {
+		return this.tokenizeActiveAndInactiveBlocks(tx, this.constants.templateNameBoundary);
+	}
+
+	/* tokenize active and inactive blocks */
+	tokenizeActiveAndInactiveBlocks(text, /*Active Region Boundary */ boundary) {
+		/* whole length */
+		let length = text.length
+
+		/* current position */
+		let position = 0
+
+		/* are we in an active region */
+		let act = false
+
+		let tokens = []
+
+		while (position < length) {
+			let i = text.indexOf(boundary, position);
+			if (i == -1) {
+				i = length;
+			}
+			var tk = { active: act, content: text.substring(position, i) };
+			tokens.push(tk);
+			position = i + boundary.length;
+			act = !act;
+		}
+
+		return tokens;
+	}
+
+}
 var tripartiteInstance = new Tripartite()
 
-if(typeof window != 'undefined') {
+if (typeof window != 'undefined') {
 	tripartiteInstance.secondaryTemplateFunctionObject = window
 }
 
-function addCallbackToPromise(promise, callback) {
-    if(callback) {
-        promise = promise.then((obj) => {
-            callback(null, obj)
-        }).catch((err) => {
-            callback(err)
-        })
-    }
 
-    return promise
-}
-          
-
-if(module) {
+if (typeof module !== 'undefined') {
 	module.exports = tripartiteInstance
 }
 else {
 	window.Tripartite = tripartiteInstance
 }
 
-if(global) {
-	if(!global.Tripartite) {
+if (typeof global != 'undefined') {
+	if (!global.Tripartite) {
 		global.Tripartite = Tripartite
 	}
-	if(!global.tripartite) {
+	if (!global.tripartite) {
 		global.tripartite = tripartiteInstance
 	}
 }

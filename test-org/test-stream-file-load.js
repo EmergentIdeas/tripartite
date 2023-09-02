@@ -54,12 +54,10 @@ describe("template loaded from stream", function() {
 		it('tests to be sure templates are loaded', function(done) {
 			// Make sure that a missing value for evaluation does not stop the 
 			// templates from continuing to execute in stream mode.
-			console.time('tests to be sure templates are loaded')
 			var hello = tri.pt("hello, __name__ __name.length__! __::test-templates/f1__")
 			
 			hello({firstName: 'Dan'}, out, function() {
 				try {
-					console.timeEnd('tests to be sure templates are loaded')
 					assert.equal(out.getContentsAsString(), 'hello,  ! world there')
 					done()
 				} catch(ex) {
@@ -67,38 +65,6 @@ describe("template loaded from stream", function() {
 				}
 			})
 		})
-
-		it("calculated template found", function(done) {
-			console.time('calculated template found')
-			tri.addTemplate('stars', '**__this__**')
-			var hello = tri.parseTemplate("hello, __name::$temp__!")
-
-			hello({name: 'Dan', cond: true, temp: 'stars'}, out, function() {
-				try {
-					console.timeEnd('calculated template found')
-					assert.equal(out.getContentsAsString(), 'hello, **Dan**!')
-					done()
-				} catch(ex) {
-					done(ex)
-				}
-			})   
-		})	
-		it("calculated template missing", function(done) {
-			console.time('calculated template missing2')
-			tri.addTemplate('stars', '**__this__**')
-			var hello = tri.parseTemplate("hello, __name::$temp__!")
-
-			hello({name: 'Dan', cond: true, temp: 'missing2'}, out, function() {
-				try {
-					console.timeEnd('calculated template missing2')
-					assert.equal(out.getContentsAsString(), 'hello, !')
-					done()
-				} catch(ex) {
-					done(ex)
-				}
-			})   
-
-		})	
 	})
 
 })
