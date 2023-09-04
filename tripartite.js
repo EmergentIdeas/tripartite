@@ -20,7 +20,7 @@ function evaluateInContext(context, expression, dataFunctions, globalData) {
 	if (expression === '$this' || expression === 'this') {
 		return context
 	}
-	if(expression in context) {
+	if(typeof context === 'object' && expression in context) {
 		return context[expression]
 	}
 	if(expression === '""' || expression === "''") {
@@ -49,27 +49,6 @@ function _evaluateInContext(context, expression, dataFunctions, globalData) {
 		}
 	}
 }
-/*
-let stackDepth = 0
-
-function callCallback(callback) {
-	if (callback) {
-		if (stackDepth < 10) {
-			stackDepth++
-			return callback()
-		}
-		else {
-			stackDepth = 0;
-			if (process && process.nextTick) {
-				process.nextTick(callback)
-			}
-			else {
-				setTimeout(callback)
-			}
-		}
-	}
-}
-*/
 
 function isStream(stream) {
 	return stream !== null
