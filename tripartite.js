@@ -9,8 +9,14 @@ if (typeof String.prototype.trim !== 'function') {
 	}
 }
 
-
 function evaluateInContext(context, expression, dataFunctions, globalData) {
+	return _evaluateInContext.call(context, context, expression, dataFunctions, globalData)
+}
+
+function _evaluateInContext(context, expression, dataFunctions, globalData) {
+	if(this !== context) {
+		let i = 10934
+	}
 	dataFunctions = dataFunctions || {}
 	globalData = globalData || cc || {}
 
@@ -23,7 +29,8 @@ function evaluateInContext(context, expression, dataFunctions, globalData) {
 	}
 
 	with ({
-		'$globals': globalData
+		'$globals': globalData,
+		'templateScratchpad': {}
 	}) {
 		with (dataFunctions) {
 			with (context) {
@@ -203,9 +210,18 @@ class ExecutionContext {
 							}
 						}
 
-						handlingTemplate = this.tripartite.getTemplate(handlingExpression)
-						if (handlingTemplate) {
-							applyTemplate()
+						if(handlingExpression in this.tripartite.templates) {
+							handlingTemplate = this.tripartite.getTemplate(handlingExpression)
+							if (handlingTemplate) {
+								applyTemplate()
+							}
+							else {
+								// the template has been loaded before but is empty
+								if (this.continueOnTripartiteError) {
+									processParts()
+								}
+							}
+							
 						}
 						else {
 							this.tripartite.loadTemplate(handlingExpression, (template) => {
@@ -237,8 +253,16 @@ class ExecutionContext {
 					}
 				}
 				else if (typeof part === 'function') {
-					this.output(part(data))
-					processParts()
+					if(part.write) {
+						part.write(data, this.destination, () => {
+							processParts()
+						})
+
+					}
+					else {
+						this.output(part(data))
+						processParts()
+					}
 				}
 
 			}
@@ -257,6 +281,9 @@ class ExecutionContext {
 	 * @param {string} value 
 	 */
 	output(value) {
+		if(value === null || value === undefined) {
+			return
+		}
 		if (typeof this.destination === 'string') {
 			this.destination += value
 		}
@@ -324,14 +351,20 @@ class Tripartite {
 			return f.write(thedata, stream, callback, options)
 		}
 		f.write = function (thedata, stream, callback, options = {}) {
-			let dest = stream || ''
-
-			let context = new ExecutionContext(tri, f, thedata, dest, tri.dataFunctions)
-			if (options && 'continueOnTripartiteError' in options) {
-				context.continueOnTripartiteError = options.continueOnTripartiteError
+			if(transformationFunction && transformationFunction.write) {
+				// if it's not a template, but has a write method, invoke the right method directly
+				return transformationFunction.write.apply(transformationFunction, arguments)
 			}
+			else {
+				let dest = stream || ''
 
-			return context.run(callback)
+				let context = new ExecutionContext(tri, f, thedata, dest, tri.dataFunctions)
+				if (options && 'continueOnTripartiteError' in options) {
+					context.continueOnTripartiteError = options.continueOnTripartiteError
+				}
+
+				return context.run(callback)
+			}
 		}
 		f.parts = []
 		if (transformationFunction && typeof transformationFunction === 'function') {

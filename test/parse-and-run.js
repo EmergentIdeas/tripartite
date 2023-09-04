@@ -63,6 +63,16 @@ describe("standard parsing and execution", function() {
 		assert.equal(blankData('blank'), 'some **blank**')
 
 	})
+	it("object creation", function() {
+		tri.addTemplate('json', "json: __JSON.stringify(this)__")
+		let create = tri.addTemplate('create', '__[{imageWidth: 200}]::json__')
+		assert.equal(create(), 'json: {"imageWidth":200}')
+		create = tri.addTemplate('create', '__({imageWidth: 200})::json__')
+		assert.equal(create(), 'json: {"imageWidth":200}')
+		create = tri.addTemplate('create', '__{imageWidth: 200}::json__')
+		assert.equal(create(), 'json: 200')
+	})	
+				
 	
 	it("missing template", function() {
 		var tri2 = tri.createBlank()
