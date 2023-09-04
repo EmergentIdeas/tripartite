@@ -10,16 +10,6 @@ if (typeof String.prototype.trim !== 'function') {
 }
 
 function evaluateInContext(context, expression, dataFunctions, globalData) {
-	return _evaluateInContext.call(context, context, expression, dataFunctions, globalData)
-}
-
-function _evaluateInContext(context, expression, dataFunctions, globalData) {
-	if(this !== context) {
-		let i = 10934
-	}
-	dataFunctions = dataFunctions || {}
-	globalData = globalData || cc || {}
-
 	if (!expression) {
 		return null
 	}
@@ -27,6 +17,13 @@ function _evaluateInContext(context, expression, dataFunctions, globalData) {
 	if (expression === '$this' || expression === 'this') {
 		return context
 	}
+	return _evaluateInContext.call(context, context, expression, dataFunctions, globalData)
+}
+
+function _evaluateInContext(context, expression, dataFunctions, globalData) {
+	dataFunctions = dataFunctions || {}
+	globalData = globalData || cc || {}
+
 
 	with ({
 		'$globals': globalData,
@@ -185,13 +182,48 @@ class ExecutionContext {
 					processParts()
 				}
 				else if (part instanceof ActiveElement) {
-
-					if (this._shouldRunActiveElement(part, data)) {
-						let resultData
-						if (part.dataExpression) {
-							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
+					let conditional = part.conditionalExpression || part.dataExpression
+					let conditionalResult = false
+					let resultData
+					if (conditional == null || conditional == undefined || conditional === '') {
+						// Because if they didn't specify a condition or data, they probably 
+						// just want the template to be run as is
+						conditionalResult = true
+					}
+					else {
+						if(part.conditionalExpression) {
+							let result = evaluateInContext(data, part.conditionalExpression, this.dataFunctions, this.initialData)
+							if (result) {
+								conditionalResult = true
+							}
 						}
 						else {
+							// This means we're evaluating the data expression to see if we should run the template
+							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
+							if(resultData === null || resultData === undefined) {
+								conditionalResult = false
+							}
+							else if (typeof resultData === 'number') {
+								// if the result is a number, any number, we want to output it
+								// unless the number is from the conditional expression, in which
+								// case we want to evaluate it as truthy
+								conditionalResult = true
+							}
+							else if(Array.isArray(resultData) && resultData.length > 0) {
+								conditionalResult = true
+							}
+							else if(resultData) {
+								conditionalResult = true
+							}
+						}
+					}
+
+
+					if (conditionalResult) {
+						if (part.dataExpression && resultData === undefined) {
+							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
+						}
+						if(resultData === null || resultData === undefined) {
 							resultData = data
 						}
 

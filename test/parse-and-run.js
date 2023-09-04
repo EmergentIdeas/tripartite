@@ -21,6 +21,11 @@ describe("standard parsing and execution", function() {
 
 		assert.equal(hello({name: 'Dan', cond: true}), 'hello, **Dan**!')
 		assert.equal(hello({name: 'Dan', cond: false}), 'hello, !')
+
+		var hello4 = tri.parseTemplate("hello, __true??name::stars__!")
+
+		assert.equal(hello4({name: 'Dan', cond: true}), 'hello, **Dan**!')
+		assert.equal(hello4({name: 'Dan', cond: false}), 'hello, **Dan**!')
 	})	
 	it("calculated template", function() {
 		tri.addTemplate('wonder', 'wonder')
@@ -52,15 +57,30 @@ describe("standard parsing and execution", function() {
 	})	
 	it("blank data", function() {
 		var blankData = tri.parseTemplate('some __::wonder__')
-		assert.equal(blankData('blank'), 'some wonder')
-		assert.equal(blankData(), 'some wonder')
-		assert.equal(blankData(null), 'some wonder')
-		assert.equal(blankData({}), 'some wonder')
-		assert.equal(blankData([]), 'some ')
-		assert.equal(blankData([1]), 'some wonder')
+		assert.equal(blankData('blank'), 'some wonder', '1')
+		assert.equal(blankData(), 'some wonder', '2')
+		assert.equal(blankData(null), 'some wonder', '3')
+		assert.equal(blankData({}), 'some wonder', '4')
+		
+		// this happens because while the template is definitely slated to run
+		// no data from the array is available to run it.
+		assert.equal(blankData([]), 'some ', '5')
+		assert.equal(blankData([1]), 'some wonder', '6')
 
 		var blankData = tri.parseTemplate('some __::stars__')
-		assert.equal(blankData('blank'), 'some **blank**')
+		assert.equal(blankData('blank'), 'some **blank**', '7')
+		
+
+		var blankData = tri.parseTemplate('some __true??::wonder__')
+		// same deal as above
+		assert.equal(blankData([]), 'some ')
+		assert.equal(blankData([1]), 'some wonder')
+		
+
+		var blankData = tri.parseTemplate('some __0::wonder__')
+		// but now new data is supplied
+		assert.equal(blankData([]), 'some wonder')
+		assert.equal(blankData([1]), 'some wonder')
 
 	})
 	it("object creation", function() {
