@@ -13,9 +13,18 @@ function evaluateInContext(context, expression, dataFunctions, globalData) {
 	if (!expression) {
 		return null
 	}
+	if(typeof expression === 'string') {
+		expression = expression.trim()
+	}
 
 	if (expression === '$this' || expression === 'this') {
 		return context
+	}
+	if(expression in context) {
+		return context[expression]
+	}
+	if(expression === '""' || expression === "''") {
+		return ''
 	}
 	return _evaluateInContext.call(context, context, expression, dataFunctions, globalData)
 }
