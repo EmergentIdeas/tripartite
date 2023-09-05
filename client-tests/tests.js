@@ -1,0 +1,5 @@
+// let props = require('./test-properties')
+const mocha = require('mocha')
+mocha.setup('bdd')
+mocha.run()
+require('../test/parse-and-run')
