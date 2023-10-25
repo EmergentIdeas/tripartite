@@ -100,24 +100,34 @@ function evaluateInContext(context, expression, dataFunctions, globalData) {
 	return resolved
 }
 
-function _evaluateInContext(context, expression, dataFunctions, globalData) {
-	dataFunctions = dataFunctions || {}
-	globalData = globalData || {}
-
-
-	with ({
-		'$globals': globalData
+let evalFunction = new Function('additionalContexts',
+	`with ({
+		'$globals': additionalContexts.globalData
 	}) {
-		with (dataFunctions) {
-			with (context) {
+		with (additionalContexts.dataFunctions) {
+			with (additionalContexts.context) {
 				try {
-					return eval(expression);
+					return eval(additionalContexts.expression);
 				} catch (e) {
 					return null;
 				}
 			}
 		}
-	}
+	}`
+)
+
+function _evaluateInContext(context, expression, dataFunctions, globalData) {
+	dataFunctions = dataFunctions || {}
+	globalData = globalData || {}
+
+
+	let result = evalFunction.call(this, {
+		globalData: globalData
+		, dataFunctions: dataFunctions
+		, context: context
+		, expression: expression
+	})
+	return result
 }
 
 module.exports = evaluateInContext
@@ -31857,11 +31867,11 @@ describe("standard parsing and execution", function() {
 	it("object creation", function() {
 		tri.addTemplate('json', "json: __JSON.stringify(this)__")
 		let create = tri.addTemplate('create', '__[{imageWidth: 200}]::json__')
-		assert.equal(create(), 'json: {"imageWidth":200}')
+		assert.equal(create(), 'json: {"imageWidth":200}', 'first test')
 		create = tri.addTemplate('create', '__({imageWidth: 200})::json__')
-		assert.equal(create(), 'json: {"imageWidth":200}')
+		assert.equal(create(), 'json: {"imageWidth":200}', 'second test')
 		create = tri.addTemplate('create', '__{imageWidth: 200}::json__')
-		assert.equal(create(), 'json: 200')
+		assert.equal(create(), 'json: 200', 'third test')
 	})	
 				
 	

@@ -1,8 +1,7 @@
 
-export default function tripartiteLoader(source, two, three) {
-	let templateName = this.resourcePath
+export default function tripartiteLoader(source, map, meta) {
+	let templateName = this._module.rawRequest
 
-	let dirName = this.context
 
 	if(!source) {
 		return ''
@@ -15,23 +14,21 @@ export default function tripartiteLoader(source, two, three) {
 
 	}
 	else {
-		if (dirName.indexOf('node_modules') > -1) {
-			var start = dirName.substring(0, dirName.indexOf('node_modules'))
-			if (templateName.indexOf(start) == 0) {
-				templateName = templateName.substring(start.length)
-			}
+		while (templateName.indexOf('node_modules') > -1) {
+			var start = templateName.indexOf('node_modules')
+			templateName = templateName.substring(0, start + 'node_modules/'.length)
 		}
-		if (templateName.indexOf(dirName) == 0) {
-			templateName = templateName.substring(dirName.length)
-		}
-		if (templateName.indexOf('node_modules/') == 0) {
-			templateName = templateName.substring('node_modules/'.length)
+		while (templateName.indexOf('../') == 0) {
+			templateName = templateName.substring(3)
 		}
 		if (templateName.indexOf('./') == 0) {
 			templateName = templateName.substring(2)
 		}
 		if (templateName.indexOf('/') == 0) {
 			templateName = templateName.substring(1)
+		}
+		if(templateName.endsWith('.tri')) {
+			templateName = templateName.substring(0, templateName.length - 4)
 		}
 		var out = 'var tri = require("tripartite"); var t = "' + escape(source) + '"; \n' +
 			'module.exports = tri.addTemplate("' + templateName + '", t); '

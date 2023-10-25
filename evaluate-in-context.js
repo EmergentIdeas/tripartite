@@ -29,24 +29,34 @@ function evaluateInContext(context, expression, dataFunctions, globalData) {
 	return resolved
 }
 
-function _evaluateInContext(context, expression, dataFunctions, globalData) {
-	dataFunctions = dataFunctions || {}
-	globalData = globalData || {}
-
-
-	with ({
-		'$globals': globalData
+let evalFunction = new Function('additionalContexts',
+	`with ({
+		'$globals': additionalContexts.globalData
 	}) {
-		with (dataFunctions) {
-			with (context) {
+		with (additionalContexts.dataFunctions) {
+			with (additionalContexts.context) {
 				try {
-					return eval(expression);
+					return eval(additionalContexts.expression);
 				} catch (e) {
 					return null;
 				}
 			}
 		}
-	}
+	}`
+)
+
+function _evaluateInContext(context, expression, dataFunctions, globalData) {
+	dataFunctions = dataFunctions || {}
+	globalData = globalData || {}
+
+
+	let result = evalFunction.call(this, {
+		globalData: globalData
+		, dataFunctions: dataFunctions
+		, context: context
+		, expression: expression
+	})
+	return result
 }
 
 module.exports = evaluateInContext
