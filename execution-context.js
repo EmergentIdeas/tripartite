@@ -18,6 +18,17 @@ class ExecutionContext {
 		this.currentData = []
 		this.dataFunctions = dataFunctions
 		this.continueOnTripartiteError = true
+		
+		// Sometimes large pages have so many elements that we exceed
+		// the maximum call depth. This happens when we have a lot of elements all being
+		// rendered by the same templates. That is, there's no async callback when a template
+		// is loaded, only instant callbacks.
+		// The downside to doing very frequent async calls is that it takes a lot longer to
+		// to get called from a setTimeout than it does to call directly. We want ot keep
+		// the time between needing to do that reasonably long. Unfortunately, there's no
+		// easy/fast way to detect the call stack depth, so we rely on this proxy.
+		this.callCount = 0
+		this.callDepthLimit = 1000
 	}
 
 	/**
@@ -58,6 +69,18 @@ class ExecutionContext {
 	_run(template, data, callback) {
 		let parts = [...template.parts].reverse()
 		const processParts = () => {
+			
+			// check to see how far down in the call stack we are. If too far down,
+			// come back in the next tick.
+			this.callCount++
+			if(this.callCount++ > this.callDepthLimit) {
+				setTimeout(()=> {
+					this.callCount = 0
+					processParts()
+				})
+				return
+			}
+
 			if (parts.length > 0) {
 				let part = parts.pop()
 				if (typeof part === 'string') {
