@@ -129,7 +129,7 @@ class ExecutionContext {
 						if (part.dataExpression && resultData === undefined) {
 							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
 						}
-						if(resultData === null || resultData === undefined) {
+						if((resultData === null || resultData === undefined) && !part.dataExpression) {
 							resultData = data
 						}
 
