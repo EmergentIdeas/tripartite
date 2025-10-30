@@ -102,6 +102,20 @@ class Tripartite {
 				return context.run(callback)
 			}
 		}
+		f.run = async function(data) {
+			let p = new Promise((resolve, reject) => {
+				f(data, (err, content) => {
+					if(err) {
+						reject(err)
+					}
+					else {
+						resolve(content)
+					}
+				})
+
+			})
+			return p
+		}
 		f.parts = []
 		if (transformationFunction && typeof transformationFunction === 'function') {
 			f.parts.push(transformationFunction)
