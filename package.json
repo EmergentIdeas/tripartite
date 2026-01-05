@@ -1,11 +1,11 @@
 {
   "name": "tripartite",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "A simple and fast javascript templating library",
   "main": "tripartite.js",
   "scripts": {
     "test": "npx mocha",
-    "testDebug": "node node_modules/mocha/bin/mocha.js --inspect --inspect-brk",
+    "testDebug": "node --inspect-brk node_modules/mocha/bin/mocha.js",
     "debug": "node --inspect --debug-brk test/test-stream-file-load-direct.js",
 	"browser-js-test-build": "npx browserify client-tests/tests.js > test.js"
   },
