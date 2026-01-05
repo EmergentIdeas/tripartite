@@ -2,6 +2,7 @@
 var tri = require('../tripartite')
 require('mocha')
 var assert = require('chai').assert
+const fs = require('fs/promises')
 
 describe("standard parsing and execution", function() {
 	it("simple replacement", function() {
@@ -126,4 +127,29 @@ describe("standard parsing and execution", function() {
 		var there = tri2.addTemplate('one/there', "now I'm there")
 		assert.equal(here(), "now I'm here now I'm there")
 	})
+	it("test simple parse time", function() {
+		let number = 10000
+
+		let nanos = process.hrtime()
+		for(let i = 0; i < number; i++) {
+			tri.addTemplate('hello', "hello, __cond??name::stars__! now I'm here __::./there__ __{imageWidth: 200}::json__")
+		}
+		let endNanos = process.hrtime()
+		let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
+		console.log(`Total time (ns / template): ${(diff) / number}`)
+
+
+	})	
+	it("test complext parse time", async function() {
+		let number = 10000
+		let data = (await fs.readFile('./test/test-templates/web-page.tri')).toString()
+
+		let nanos = process.hrtime()
+		for(let i = 0; i < number; i++) {
+			tri.addTemplate('hello', data)
+		}
+		let endNanos = process.hrtime()
+		let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
+		console.log(`Total time (ns / template): ${(diff) / number}`)
+	})	
 })

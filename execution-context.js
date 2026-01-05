@@ -130,6 +130,7 @@ class ExecutionContext {
 							resultData = evaluateInContext(data, part.dataExpression, this.dataFunctions, this.initialData)
 						}
 						if((resultData === null || resultData === undefined) && !part.dataExpression) {
+							// we only want use the context data for the template data if we didn't have a data expression
 							resultData = data
 						}
 
