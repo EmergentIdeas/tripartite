@@ -2,67 +2,67 @@
 var tri = require('../tripartite')
 require('mocha')
 var assert = require('chai').assert
-const fs = require('fs/promises')
+const pageData = require('./test-templates/web-page')
 
-describe("standard parsing and execution", function() {
-	it("simple replacement", function() {
+describe("standard parsing and execution", function () {
+	it("simple replacement", function () {
 		var hello = tri.parseTemplate("hello, __name__!")
-		assert.equal(hello({name: 'Dan'}), 'hello, Dan!')
+		assert.equal(hello({ name: 'Dan' }), 'hello, Dan!')
 	})
 
-	it("conditional run", function() {
+	it("conditional run", function () {
 		var hello = tri.parseTemplate("hello, __cond??name__!")
-		assert.equal(hello({name: 'Dan', cond: true}), 'hello, Dan!')
-		assert.equal(hello({name: 'Dan', cond: false}), 'hello, !')
+		assert.equal(hello({ name: 'Dan', cond: true }), 'hello, Dan!')
+		assert.equal(hello({ name: 'Dan', cond: false }), 'hello, !')
 	})
-	it("sub template", function() {
+	it("sub template", function () {
 		tri.addTemplate('stars', '**__this__**')
 		tri.addTemplate('wonder', 'wonder')
 		var hello = tri.parseTemplate("hello, __cond??name::stars__!")
 
-		assert.equal(hello({name: 'Dan', cond: true}), 'hello, **Dan**!')
-		assert.equal(hello({name: 'Dan', cond: false}), 'hello, !')
+		assert.equal(hello({ name: 'Dan', cond: true }), 'hello, **Dan**!')
+		assert.equal(hello({ name: 'Dan', cond: false }), 'hello, !')
 
 		var hello4 = tri.parseTemplate("hello, __true??name::stars__!")
 
-		assert.equal(hello4({name: 'Dan', cond: true}), 'hello, **Dan**!')
-		assert.equal(hello4({name: 'Dan', cond: false}), 'hello, **Dan**!')
-	})	
-	it("calculated template", function() {
+		assert.equal(hello4({ name: 'Dan', cond: true }), 'hello, **Dan**!')
+		assert.equal(hello4({ name: 'Dan', cond: false }), 'hello, **Dan**!')
+	})
+	it("calculated template", function () {
 		tri.addTemplate('wonder', 'wonder')
 		console.time('calculated template found')
 		tri.addTemplate('stars', '**__this__**')
 		var hello = tri.parseTemplate("hello, __name::$temp__!")
-		let result = hello({name: 'Dan', cond: true, temp: 'stars'})
+		let result = hello({ name: 'Dan', cond: true, temp: 'stars' })
 		console.timeEnd('calculated template found')
 		assert.equal(result, 'hello, **Dan**!')
-	})	
-	it("proximate templates", function() {
+	})
+	it("proximate templates", function () {
 		tri.addTemplate('stars', '**__this__**')
 		tri.addTemplate('wonder', 'wonder')
 		var hello2 = tri.parseTemplate("hello, __cond??name::stars____cond??name::stars__!")
 
-		assert.equal(hello2({name: 'Dan', cond: true}), 'hello, **Dan****Dan**!')
-		assert.equal(hello2({name: 'Dan', cond: false}), 'hello, !')
+		assert.equal(hello2({ name: 'Dan', cond: true }), 'hello, **Dan****Dan**!')
+		assert.equal(hello2({ name: 'Dan', cond: false }), 'hello, !')
 
 		var hello3 = tri.parseTemplate("hello, __cond??name::stars__a__cond??name::stars__!")
 
-		assert.equal(hello3({name: 'Dan', cond: true}), 'hello, **Dan**a**Dan**!')
-		assert.equal(hello3({name: 'Dan', cond: false}), 'hello, a!')
-	})	
-	it("globals reference", function() {
+		assert.equal(hello3({ name: 'Dan', cond: true }), 'hello, **Dan**a**Dan**!')
+		assert.equal(hello3({ name: 'Dan', cond: false }), 'hello, a!')
+	})
+	it("globals reference", function () {
 		tri.addTemplate('second', '__num1__ __num2__ __$globals.num2__')
 		var first = tri.parseTemplate("__abc::second__ __$globals.num2__")
 
-		assert.equal(first({abc: {num1: 1, num2: 3}, num2: 2}), '1 3 2 2')
-	})	
-	it("blank data", function() {
+		assert.equal(first({ abc: { num1: 1, num2: 3 }, num2: 2 }), '1 3 2 2')
+	})
+	it("blank data", function () {
 		var blankData = tri.parseTemplate('some __::wonder__')
 		assert.equal(blankData('blank'), 'some wonder', '1')
 		assert.equal(blankData(), 'some wonder', '2')
 		assert.equal(blankData(null), 'some wonder', '3')
 		assert.equal(blankData({}), 'some wonder', '4')
-		
+
 		// this happens because while the template is definitely slated to run
 		// no data from the array is available to run it.
 		assert.equal(blankData([]), 'some ', '5')
@@ -70,13 +70,13 @@ describe("standard parsing and execution", function() {
 
 		var blankData = tri.parseTemplate('some __::stars__')
 		assert.equal(blankData('blank'), 'some **blank**', '7')
-		
+
 
 		var blankData = tri.parseTemplate('some __true??::wonder__')
 		// same deal as above
 		assert.equal(blankData([]), 'some ')
 		assert.equal(blankData([1]), 'some wonder')
-		
+
 
 		var blankData = tri.parseTemplate('some __0::wonder__')
 		// but now new data is supplied
@@ -84,7 +84,7 @@ describe("standard parsing and execution", function() {
 		assert.equal(blankData([1]), 'some wonder')
 
 	})
-	it("object creation", function() {
+	it("object creation", function () {
 		tri.addTemplate('json', "json: __JSON.stringify(this)__")
 		let create = tri.addTemplate('create', '__[{imageWidth: 200}]::json__')
 		assert.equal(create(), 'json: {"imageWidth":200}')
@@ -92,10 +92,10 @@ describe("standard parsing and execution", function() {
 		assert.equal(create(), 'json: {"imageWidth":200}')
 		create = tri.addTemplate('create', '__{imageWidth: 200}::json__')
 		assert.equal(create(), 'json: 200')
-	})	
-				
-	
-	it("missing template", function() {
+	})
+
+
+	it("missing template", function () {
 		var tri2 = tri.createBlank()
 		var nostars = tri2.parseTemplate('no stars __::stars__')
 		let templateMissing = true
@@ -104,16 +104,16 @@ describe("standard parsing and execution", function() {
 				continueOnTripartiteError: false
 			})
 			templateMissing = false
-		} catch(e) {
+		} catch (e) {
 		}
-		
-		if(!templateMissing) {
+
+		if (!templateMissing) {
 			throw new Error('missing template not caught')
 		}
 	})
-	it("json conversion", function() {
+	it("json conversion", function () {
 		var jsonTest = tri.parseTemplate('__({name: "Dan"})::toJson__');
-		tri.addTemplate('toJson', function(cc) {
+		tri.addTemplate('toJson', function (cc) {
 			return JSON.stringify(cc)
 		})
 		assert.equal(jsonTest(), '{"name":"Dan"}')
@@ -121,35 +121,57 @@ describe("standard parsing and execution", function() {
 		jsonTest = tri.parseTemplate('__{name: "Dan"}::toJson__');
 		assert.equal(jsonTest(), '"Dan"')
 	})
-	it("relative template", function() {
+	it("relative template", function () {
 		var tri2 = tri.createBlank()
 		var here = tri2.addTemplate('one/here', "now I'm here __::./there__")
 		var there = tri2.addTemplate('one/there', "now I'm there")
 		assert.equal(here(), "now I'm here now I'm there")
 	})
-	it("test simple parse time", function() {
-		let number = 10000
+	if (process.hrtime) {
+		it("test simple parse time", function () {
+			let number = 10000
 
-		let nanos = process.hrtime()
-		for(let i = 0; i < number; i++) {
-			tri.addTemplate('hello', "hello, __cond??name::stars__! now I'm here __::./there__ __{imageWidth: 200}::json__")
-		}
-		let endNanos = process.hrtime()
-		let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
-		console.log(`Total time (ns / template): ${(diff) / number}`)
+			let nanos = process.hrtime()
+			for (let i = 0; i < number; i++) {
+				tri.addTemplate('hello', "hello, __cond??name::stars__! now I'm here __::./there__ __{imageWidth: 200}::json__")
+			}
+			let endNanos = process.hrtime()
+			let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
+			console.log(`Total time (ns / template): ${(diff) / number}`)
 
 
-	})	
-	it("test complext parse time", async function() {
-		let number = 10000
-		let data = (await fs.readFile('./test/test-templates/web-page.tri')).toString()
+		})
+		it("test complext parse time", async function () {
+			let number = 10000
+			// let data = (await fs.readFile('./test/test-templates/web-page.tri')).toString()
 
-		let nanos = process.hrtime()
-		for(let i = 0; i < number; i++) {
-			tri.addTemplate('hello', data)
-		}
-		let endNanos = process.hrtime()
-		let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
-		console.log(`Total time (ns / template): ${(diff) / number}`)
-	})	
+			let nanos = process.hrtime()
+			for (let i = 0; i < number; i++) {
+				tri.addTemplate('hello', pageData)
+			}
+			let endNanos = process.hrtime()
+			let diff = ((endNanos[0] - nanos[0]) * 1000000000) + (endNanos[1] - nanos[1])
+			console.log(`Total time (ns / template): ${(diff) / number}`)
+		})
+	}
+	else {
+		it("test simple parse time", function () {
+			let number = 10000
+
+			console.time('parse templates')
+			for (let i = 0; i < number; i++) {
+				tri.addTemplate('hello', "hello, __cond??name::stars__! now I'm here __::./there__ __{imageWidth: 200}::json__")
+			}
+			console.timeEnd('parse templates')
+		})
+		it("test complext parse time", async function () {
+			let number = 10000
+
+			console.time('parse templates')
+			for (let i = 0; i < number; i++) {
+				tri.addTemplate('hello', pageData)
+			}
+			console.timeEnd('parse templates')
+		})
+	}
 })

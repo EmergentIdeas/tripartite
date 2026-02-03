@@ -52,13 +52,16 @@ class Tripartite {
 		} } = options
 		this.constants = constants
 
-		// This object (if set) will receive the template functions parsed from a script
-		// I want to be able to call my templates as global functions, so I've set it
+		// This object (if set) will receive the template functions
+		// If I want to be able to call my templates as global functions, I'd set this
 		// to be the window object
 		this.secondaryTemplateFunctionObject = options.secondaryTemplateFunctionObject
 
+		
+		// sources for templates that can be loaded by name
 		this.loaders = options.loaders || []
 
+		// Functions and data which will always be in the globabl scope for any template execution
 		this.dataFunctions = options.dataFunction || {}
 	}
 
@@ -124,6 +127,20 @@ class Tripartite {
 		return f
 	}
 
+	/**
+	 * Takes a named string of function, parses or converts it to a tripartite template,
+	 * adds that template to the cached set of templates for this tripartite instance
+	 * and then returns the template.
+	 * 
+	 * The `template` here can be one of 3 things:
+	 * 1. A string which is a tripartite template
+	 * 2. A function which takes a value and returns a result
+	 * 3. A transform stream, which is likely the product of a previously parsed string 
+	 * or upgraded function
+	 * @param {string} name 
+	 * @param {string|function} template 
+	 * @returns 
+	 */
 	addTemplate(name, template) {
 		if (typeof template === 'string') {
 			template = this.parseTemplate(template);
@@ -138,14 +155,34 @@ class Tripartite {
 		return template;
 	}
 
+	/**
+	 * Creates a new tripartite instance that does not have any templates, loaders,
+	 * or data functions from this instance
+	 * @returns A tripartite instance
+	 */
 	createBlank() {
 		return new Tripartite()
 	}
 
+	/**
+	 * Returns a template from the already loaded templates. If you want a template
+	 * which may NOT have been loaded yet, but you want it whether or not it has,
+	 * then use `loadTemplate'
+	 * @param {string} name 
+	 * @returns 
+	 */
 	getTemplate(name) {
 		return this.templates[name]
 	}
 
+	/**
+	 * Attempts to find a template matching the name either from the template cache
+	 * or from the loaders (the sources of templates). If found, it will be the first
+	 * argument to the `callback`. If no such template could be found, `undefined`
+	 * will be the argument. This method will always call back, one way or another. 
+	 * @param {string} name 
+	 * @param {function(template)} callback 
+	 */
 	loadTemplate(name, callback) {
 		if (name in this.templates) {
 			callback(this.templates[name])
@@ -175,7 +212,7 @@ class Tripartite {
 						}
 						else if (count == 0) {
 							done = true
-							tri.templates[name] = null
+							tri.templates[name] = undefined
 						}
 						if (done) {
 							callback(tri.getTemplate(name))

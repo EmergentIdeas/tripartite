@@ -1,4 +1,4 @@
-__::start__
+let data = `__::start__
 <div class="page page-landing">
 	<section class="jumbo container-wrapper home-banner-picture-background">
 		__::inner-header__
@@ -137,3 +137,5 @@ __::start__
 	__::footer__
 </div>
 __::end__
+`
+module.exports = data

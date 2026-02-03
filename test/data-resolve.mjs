@@ -1,9 +1,9 @@
-var tri = require('../tripartite')
-require('mocha')
-var expect = require('chai').expect
-var assert = require('chai').assert
-const resolveDataPath = require('../resolve-data-path')
-const evaluateInContext = require('../evaluate-in-context')
+import resolveDataPath from '../resolve-data-path.js';
+import evaluateInContext from '../evaluate-in-context.js';
+
+import test from 'node:test';
+import assert from 'node:assert'
+
 
 let dat1 = {
 	a: {
@@ -15,15 +15,14 @@ let dat1 = {
 	e: 'hello'
 }
 
-describe("data path", function() {
-	it("calculate parts", function() {
-		
+test("data path", async (t) => {
+
+	await t.test('calculate parts', async (t) => {
 		assert.equal(resolveDataPath(dat1, 'a.b'), 2)
 		assert.equal(resolveDataPath(dat1, 'e'), 'hello')
+
 	})
-	
-	it("performance", function() {
-		
+	await t.test('performance', async (t) => {
 		console.time('resolve')
 		for(let i = 0; i < 10000; i++) {
 			resolveDataPath(dat1, 'a.c.d')
@@ -37,7 +36,3 @@ describe("data path", function() {
 		console.timeEnd('eval')
 	})
 })
-
-
-
-
