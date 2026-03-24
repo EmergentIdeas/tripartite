@@ -167,12 +167,26 @@ class Tripartite {
 	/**
 	 * Returns a template from the already loaded templates. If you want a template
 	 * which may NOT have been loaded yet, but you want it whether or not it has,
-	 * then use `loadTemplate'
+	 * then use `loadTemplate` or `loadTemplateAsync`
 	 * @param {string} name 
 	 * @returns 
 	 */
 	getTemplate(name) {
 		return this.templates[name]
+	}
+	
+	/**
+	 * Like `loadTemplate` but produces a promise which will resolve to the template 
+	 * or `undefined`. 
+	 * @param {string} name 
+	 */
+	async loadTemplateAsync(name) {
+		let p = new Promise((resolve, reject) => {
+			this.loadTemplate(name, (template) => {
+				resolve(template)
+			})
+		})
+		return p
 	}
 
 	/**
@@ -351,14 +365,12 @@ var tripartiteInstance = new Tripartite()
 
 if (typeof window != 'undefined') {
 	tripartiteInstance.secondaryTemplateFunctionObject = window
+	window.Tripartite = tripartiteInstance
 }
 
 
 if (typeof module !== 'undefined') {
 	module.exports = tripartiteInstance
-}
-else {
-	window.Tripartite = tripartiteInstance
 }
 
 if (typeof global != 'undefined') {

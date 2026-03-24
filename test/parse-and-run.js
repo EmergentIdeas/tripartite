@@ -127,6 +127,33 @@ describe("standard parsing and execution", function () {
 		var there = tri2.addTemplate('one/there', "now I'm there")
 		assert.equal(here(), "now I'm here now I'm there")
 	})
+	it("load template", async function () {
+		var tri2 = tri.createBlank()
+		tri2.loaders.push((name, callback) => {
+			if('abc' === name) {
+				return callback('hello there')
+			}
+			callback(undefined)
+		})
+		let p = new Promise(async (resolve, reject) => {
+			tri2.loadTemplate('abc', (template) => {
+				assert.equal(template(), "hello there")
+				resolve()
+			})
+		})
+		return p
+	})
+	it("async load template", async function () {
+		var tri2 = tri.createBlank()
+		tri2.loaders.push((name, callback) => {
+			if('abc' === name) {
+				return callback('hello there')
+			}
+			callback(undefined)
+		})
+		let template = await tri2.loadTemplateAsync('abc')
+		assert.equal(template(), "hello there")
+	})
 	if (process.hrtime) {
 		it("test simple parse time", function () {
 			let number = 10000

@@ -1,5 +1,5 @@
 const path = require('path');
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin")
+// const NodePolyfillPlugin = require("node-polyfill-webpack-plugin")
 
 /* need to install:
 
@@ -29,7 +29,7 @@ let testConf = {
 		}
 	},
 	plugins: [
-        new NodePolyfillPlugin()
+        // new NodePolyfillPlugin()
     ]
 }
 
